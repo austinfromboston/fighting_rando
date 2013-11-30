@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>How to Fight Randos</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+<style type="text/css">
+/* Slideshow styles */
+.remark-slide{
+background-color: #333;
+color: white;
+}
+
+.remark-slide .remark-slide-fullscreen.remark-slide-content {
+  background-size: cover !important;
+  background-position: 50% 0%;
+  text-shadow: 0 0 0 transparent, 0 2px 2px #222;
+}
+
+.columned h2 {
+  margin-left: 50%
+}
+
+.center-image {
+  text-align: center;
+}
+
+</style>
+</head>
+<body>
+<textarea id="source">
+
+class: bottom, right, remark-slide-fullscreen, columned
+background-image: url(images/Lando_Calrissian.jpg)
+background-size: cover;
+
+# How to Fight Randos
+## Tracking Down and Eliminating Inconsistent Test Suite Failures
+## Austin Putman, @austinfrmboston, VP of Engineering, Omada Health
+
+---
+
+<img align=right src="images/04-lando-jpg_786x1048.JPG" alt="rando" width="50%">
+# Test failures should be information about the state of the code
+### Random test failures prevent us from trusting this information
+---
+class: middle
+
+# Strategies for Resolving Random Failures
+## Test Pollution
+Force a deterministic order to seek out polluting tests
+## Incorrect Assumptions
+Use deduction to determine where you've gone astray
+## External Dependencies
+Stub out dependent services
+## Test Harness Issues
+Improve the testing toolchain
+
+---
+<img align=right src="images/2012-09-02-dragoncon_cosplay05-768x1024.jpg" alt="rando" width="50%">
+# Resolving Test Pollution
+
+- Run the test suite in the same order
+- Copy the fixtures from the failed build
+
+---
+# Identify the Random Seed
+
+```rspec
+Failures:
+
+  1) Group#lesson_start 21 weeks from start should be in week 18
+     Failure/Error: group.week.should == 21
+       expected: 21
+       got: 20 (using ==)
+     # ./spec/models/group_spec.rb:295:in `block (4 levels) in <top (required)>'
+
+  2) Group#lesson_start 5 weeks from start should be in week 5
+     Failure/Error: group.week.should == 5
+       expected: 5
+       got: 4 (using ==)
+     # ./spec/models/group_spec.rb:271:in `block (4 levels) in <top (required)>'
+
+Finished in 8 minutes 1 second
+4112 examples, 2 failures, 2 pending
+
+Failed examples:
+
+rspec ./spec/models/group_spec.rb:293 # Group#lesson_start 21 weeks from start should be in week 18
+rspec ./spec/models/group_spec.rb:269 # Group#lesson_start 5 weeks from start should be in week 5
+
+Randomized with seed 22164
+```
+
+# Can you find it?
+
+---
+
+# Reproduce the failure
+## Modify your `.rspec` file
+```ruby
+--colour
+--format documentation
+--seed 22164
+```
+
+## Rerun `rake spec` and verify you can get the same failure
+
+![reproduced failure](images/reproduced_failure.png)
+
+---
+class: remark-slide-fullscreen
+background-image: url(images/landokid.jpg)
+# Congratulations, you've got reproducibility!
+# Now how do I track down this Rando character?
+
+---
+class: remark-slide-fullscreen
+background-image: url(images/star_wars_science.jpg)
+# You need science!
+
+---
+class: remark-slide-fullscreen
+background-image: url(images/consistent_failures.jpg)
+
+# Reproducing Test Pollution failures consistently
+
+---
+class: remark-slide-fullscreen
+background-image: url(images/ultralight_plane.jpg)
+
+# Faster feedback loops
+
+---
+class: remark-slide-fullscreen, center, middle
+background-image: url(images/Julia_Complexity.jpg)
+
+# Binary Search
+---
+
+# SpecManualOrder
+Documentation comes out, documentation goes right back in
+
+![spec manual order](images/spec_manual_order.png)
+
+
+---
+
+# Ordering 3000 specs
+
+- use `--format documentation` in your `.rspec` file
+- copy the output of `rake spec` into a file
+- add `SpecManualOrder.new("documentation_output.txt").order(config)` to your spec_helper file
+- rerun `rake spec` and verify the failure
+
+<div class="center-image">
+![spec_helper.rb](images/spec_helper_example.png)
+</div>
+
+---
+
+<img align=right src="images/transplant_test_cases.png" alt="tests">
+# Binary Search, step 0
+- Transplant half of the prior test cases to the bottom of the ordering file
+- rerun `rake spec` to check if the failure occurs
+
+---
+
+<img align=right src="images/transplant_tests_2.png" alt="tests">
+# Binary Search, step 1
+- This time transplant the other set of prior cases
+- rerun `rake spec` to check if the failure occurs
+
+---
+
+# Repeat using the failing set of cases
+## Until you have only the culprit case remaining
+<div class="center-image">
+![lando the lawyer](images/lando-law-600x310.jpg)
+</div>
+
+---
+class: center
+
+# Now that you've simplified the problem
+![puzzle](images/jigsaw-puzzle.jpg)
+---
+class: remark-slide-fullscreen, center
+background-image: url(images/Puzzle2.jpg)
+
+# Time to solve the puzzle!
+
+---
+
+# Play along at home
+
+```bash
+git co 1843605900
+cd .. && cd -
+bundle
+```
+
+- in .rspec
+```ruby
+--format documentation
+--seed 22164
+```
+
+```bash
+rake db:drop db:setup db:test:prepare
+be rake spec
+```
+- wait patiently
+
+---
+
+# Play along at home
+
+- Review accounts.yml. (Remember, the fixture data matters)
+- The `complete` account should have a timezone or Central or Eastern, not Pacific.
+- You can edit it in the file or keep rebuilding the fixtures until you get the value you want.
+- You should see:
+
+<div class="center-image">
+![failures](images/failures_with_seed.png)
+</div>
+
+
+---
+
+# Play along at home
+
+- Copy terminal log into a file “test1.txt” and clean it up (phantomjs messages, git pull noise, INFO noise)
+```bash
+git co master spec/support/spec_manual_order.rb
+```
+- In spec_helper: 
+```ruby
+SpecManualOrder.new("test_raw.txt").order(config)
+```
+```bash
+be rake spec
+```
+- Verify problem still happens
+- Proceed to resolve the issue through science
+
+<div class="center-image">
+![rando](images/lando_costume004.jpg)
+</div>
+
+---
+
+class: center, middle
+<img alt="omada" src="images/omada_logo.png" height=200 width=200>
+
+# Thank You!
+@austinfrmboston
+@omadahealth
+
+</textarea>
+<script src="http://gnab.github.io/remark/downloads/remark-0.5.9.min.js" type="text/javascript">
+</script>
+<script type="text/javascript">
+var slideshow = remark.create();
+</script>
+</body>
+</html>
