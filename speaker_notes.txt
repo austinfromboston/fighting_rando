@@ -1,0 +1,223 @@
+Tracking Down and Eliminating Inconsistent Test Suite Failures
+---
+Ideally, test failures are information about the state of the code.  A
+failed test case indicates code that does not serve the purpose it was
+intended for. 
+
+Sometimes, however, despite our best efforts, test cases fail for
+reasons that are unclear and difficult to reproduce.  
+
+--- 
+
+Things like network latency, unexpected states in test fixtures, or
+leaky abstractions in the test runtime can all affect test outcomes.
+
+Test Pollution
+
+Test pollution is a change to the test environment that persists between
+examples.  This environmental difference can cause future test cases to
+fail, but may go undetected if the offending test case occurs after any
+vulnerable test cases.  Raising awareness of test pollution is why Rspec
+defaults to performing test runs in a randomized order.
+
+Incorrect Assumptions
+
+Incorrect assumptions are the soul of test-driven development.
+Sometimes they are also the arch-fiend.  Every test case embeds
+assumptions about the state of the test environment.  These allow the
+test writer to focus succinctly on the behavior under test without
+having to overspecify the environment.  Sometimes these assumptions
+fail, for example, the current_user fixture could have a randomly
+generated zip code that doesn’t correctly map to a state, or a personal
+timezone that is different from the expected one.
+
+External Dependencies
+
+Our code depends on external services.  In some cases, our tests do as
+well.  If Google Analytics or Facebook or Amazon or Stripe are
+unresponsive during a test run, a test can fail.  For most suites, the
+goal is to validate that our code works correctly.  To this end it is
+appropriate to stub out dependencies on external services during
+testing.  However, it is also important to recognize that external APIs
+can and do change and regularly test them as part of our overall suite.
+
+Test Harness Issues
+
+The Rails ecosystem has a number of high-quality tools to create
+reliable testing infrastructure.  While impressive, these tools are
+imperfect.  This leads to test failures because of race conditions in
+transaction rollbacks, for example, or because of improper memory
+sharing between threads.
+---
+Today I’m going to focus on test failures due to test pollution.
+Certain tests regularly fail when run in the context of the entire
+suite, but never fail when run individually.  If you’ve examined your
+assumptions and your dependencies, you may want to check for test
+pollution.
+
+Test pollution is easy to confirm.  When running the same test suite in
+the same order locally, you should get the same unpredictable failures.
+In some cases, you may need to copy the fixtures from the failed build
+to your local machine as well.
+---
+Random Seed
+To run the test suite in the same order, you’ll need to identify the
+random seed used to run the failed suite.  This number is included at
+the end of an rspec run.  To force your tests to run in the same order,
+you’ll want to set the --seed option in your local .rspec file.  When
+hunting a random failure, I always recommend changing the spec format to
+documentation.  This allows you to see which tests have run before the
+failure occurs.  In many cases, reviewing this log may allow you to make
+an intuitive leap to the solution, or at least come up with a list of
+likely suspects.
+---
+Procedure
+
+After setting the seed and the format, run rake spec.  If the fixtures
+are the same and the seed is the same and your test failure does not
+re-occur, it is unlikely to be test pollution.  Consider the other
+causes of test instability more closely.
+----
+If you are able to reproduce the failure, congratulations!  You now have
+reproducibility!  It is now possible to investigate the cause of your
+random failure.
+
+At this point, it is possible to start writing print statements or put a
+debugger breakpoint inside the offending test to learn more about the
+problem.  In some cases, this may be sufficient to resolve the issue.
+You may be able to reset some initial state or set a value explicitly.  
+
+In some cases, though, the sources of the problem are not yet obvious.
+In a complex codebase it may not be clear how a value got out of whack,
+and if you only resolve it in the vulnerable test case, this pollution
+could affect future test cases and lead to sorrow.  Or it may not be
+obvious what the problem is, really, other than what you expected to
+happen ain’t happening.  Sometimes you need more information.
+---
+In these cases you need science.  Your monkey brain will want to give
+up.  This requires patience and precision.
+---
+In a recent case, I was able to reproduce a test failure consistently.
+It happened around test # 3000 in a set of 4000 test cases.  It took
+about 10 minutes to see the failure come up.  I couldn’t explore it
+using the awesome Rubymine debugger, because the failure wouldn’t occur
+in the Rubymine runtime.
+
+So I was stuck with puts statements.
+---
+
+For a programmer, waiting 10 minutes for feedback is terrible.  All of
+the stack you’ve built up in your brain to solve this particular problem
+slowly disintegrates as you work on other problems or check your
+facebook page while the tests are running.
+
+There’s an apocryphal story about the development of ultralight
+airplanes.  Early in the development of the ultralight industry, the
+planes were very rare, very expensive, and generally considered
+deathtraps.  Each new iteration took months of planning to build, then
+it would be custom manufactured, and then test flights would occur, and
+then it would crash.  
+
+The materials were delicate, and the crashes pretty much wrecked months
+of work.  With the information gained from that set of tests, plane
+designers went back to the drawing board -- literally.  It took a long
+time to make progress with this process.
+
+Eventually, one shop designed a plane from cheap, plentiful materials --
+foam, lightweight steel, and tape.  These planes could be repaired
+quickly with onsite materials, and sometimes multiple test flights would
+happen in an hour.  Information gained from the last flight was able to
+be applied to the next iteration immediately.  With this faster feedback
+loop, it was possible to make rapid leaps in design.  All current
+ultralight planes are based on designs created in that shop.
+
+---
+Rando has infinite patience -- you don’t.  Don’t play Rando’s game --
+first step: shorten feedback loops so your brain can investigate the
+problem effectively.  We can discard large amounts of complexity and
+noise by using a binary search.
+
+Binary search requires us to remove large segments of the test suite to
+narrow in on the test that is causing the pollution.  This creates a
+problem, because random ordering in the test suite changes when you
+remove tests.
+
+Yeah, that’s right -- there’s no way to effectively perform a binary
+search using a random seed.
+
+---
+Here’s the good news: it *is* possible to manually declare the ordering
+of your rspec tests, using an undocumented configuration option
+order_examples.  config.order_examples takes a block, which will be
+passed the collection of rspec examples after Rspec has loaded the specs
+to be run.  Just reorder the examples in your preferred order and return
+that set from the block.
+
+How Do I Order 3000 specs?
+
+In Ruby, everything is an object -- this includes Rspec examples.  Since
+they are objects, they have a description method that can be matched to
+the output of the spec suite when run in documentation mode.
+
+This means it is possible to use the spec suite’s output to specify the
+order for future test runs.
+
+----
+Using SpecManualOrder
+
+0. Use --format documentation
+
+1. Copy or pipe the output of your test run to a file.  Review the file
+   to remove any extraneous debugging output, git pull notifications,
+etc.  The file should only contain test case descriptions.
+
+2. In your spec_helper.rb, inside the RSpec.configure block, initialize
+   the SpecManualOrder helper with the name of your ordering file like
+so: SpecManualOrder.new("documentation_file").order(config)
+
+3. Run rake spec to verify that your test pollution failure still occurs
+   as expected.
+---
+
+Did all of that work?  Brilliant!  Now: 
+
+1. Starting from where your failure happens, transplant half the prior
+   test cases to the bottom of the ordering file.  This way those won’t
+run before your affected code.  
+
+2.  Run rake spec again.  If your failure occurs, you know the cause is
+    in the batch of tests that preceded the failing case.
+
+---
+3.  Verify the other block does not cause the failure.
+
+Repeat these steps. As you proceed, each time you split the preceding
+cases, one variant should have the failure, while the other shouldn’t.  
+
+Technically, it is possible for multiple specs to cause the same
+failure, or for an interaction between preceding specs to be the cause.
+Be vigilant against this by always running both variants, even after
+confirming that one variant causes the failure.  
+---
+Eventually narrow the field to just one test case or describe block.
+Now you have a very short feedback loop.  
+
+---
+Experiment with commenting out lines in the causal case to determine
+what affects the vulnerable case.  Once you’ve determined the culprit
+line in the test suite, experiment with commenting out lines of code
+that are exercised by that line.
+
+Once you’ve isolated the problem to 2 or 3 lines of code, you’ve put
+monkey brain in a position to shine against your random failure!  Now is
+the time to use your neurons as powerful pattern recognition engines.
+Given this new context, solving the problem should be pretty easy.
+
+---
+
+This is a pretty complex operation, slightly more complicated than going
+down stairs in case of fire, so it may be useful to practice it.  In
+this presentation I’m including the free play-along-at-home game where
+you can check out your own copy of kairos on a troubled commit, as well
+as the essential random seed that causes issues in some cases.
+
