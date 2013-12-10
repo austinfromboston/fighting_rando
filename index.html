@@ -129,6 +129,7 @@ then he's a corporate titan, then he's a freedom fighter, then he's an action fi
 
 ???
 
+But lots of people try.  
 You hope your test suite is like Lando.  
 A trusted friend you can turn to when things get sticky.  
 
@@ -145,7 +146,7 @@ There are some things your test suite can do that aren't quite as bad as
 
 - freezing your team in carbonite and 
 - turning them over to a brutal smuggling kingpin 
-- shaped like an enormous mound of mashed potatoes
+- who is shaped like an enormous mound of mashed potatoes
 
 but they're pretty close.
 
@@ -356,7 +357,7 @@ class: center
 
 ???
 
-In Cucumber tests, you'll want to remove Google analytics, like buttons, etc.  
+In Cucumber tests, you'll want to remove Google analytics, Facebook like buttons, etc.  
 These third party services can slow down page load time and create unnecessary failures.  
 
 ---
@@ -451,7 +452,7 @@ Credit @mikegehard, @pivotallabs
 ???
 
 You can fix this by adding an explicit wait into your cucumber steps when you need to rig the race.  jQuery provides a handy counter
-of all the active xhr requests outstanding, so you don't have to break a sweat.  
+of all the active XHR requests outstanding, so you don't have to break a sweat.  
 
 ---
 
@@ -478,7 +479,7 @@ This also made a big difference.
 
 Postgresql has some pretty strong opinions about database connections and transactions.  
 See, when you connect to a postgres database, you get a connection pool, not just one itty bitty connection.  
-And when you use Jose Valim's ActiveRecord shared connection to share transactions between the test thread and the server thread
+And when you use Jose Valim's ActiveRecord shared connection to share transactions between the test thread and the server thread  
 -- well, you are stepping in to a world of database connection roulette.  
 As the size of your test suite increases, the odds that *at some point* your server thread and test thread will grab hold of the same connection and send conflicting commands increases.  
 When you add or alter data from the cucumber steps, you are betting that your server thread is using the same connection and thus has visibility into your transaction.  
@@ -504,7 +505,7 @@ Credit: @mperham
 Fortunately, the Ruby community is getting slightly better at threading. 
 Okay, really only Mike Perham and a few others have gotten better.  
 But they make gists for the rest of us.  
-Sidekiq also has this problem of sharing database connections.  
+Mike's project, Sidekiq, also has this problem of sharing database connections.  
 It is solved using the ConnectionPool gem.  
 Now only one thread can access the shared database connection at a time.  
 ---
@@ -531,6 +532,8 @@ SAVEPOINT active_record_-1
 ???
 
 Even after following all their suggestions, I still ended up with this error.  
+In case you're wondering how a savepoint can be negatively numbered, I'll say it doesn't bode well
+for the thread safety of activerecord with postgres.   
 So for now the http mutex middleware stays.  
 
 ---
@@ -638,6 +641,9 @@ What is the value of the random seed?
 
 ???
 
+Reproducing Failed Builds  
+Modify your `.rspec` file to include the seed  
+
 Be sure to change the format to documentation as well as adding the seed.
 
 ---
@@ -647,6 +653,7 @@ Be sure to change the format to documentation as well as adding the seed.
 ![reproduced failure](images/reproduced_failure.png)
 
 ???
+## Rerun `rake spec` and verify you can get the same failure
 
 If you can achieve this, you are in great shape.  
 Any problem that can be reliably reproduced can be solved.  
@@ -702,9 +709,8 @@ background-image: url(images/ultralight_plane.jpg)
 There’s an apocryphal story about the development of ultralight airplanes.  
 Early in the development of the ultralight industry, the planes were very rare, very expensive, and generally considered deathtraps.  
 Each new model took months of planning to build, 
-then it would be custom manufactured, and 
-then test flights would occur, and 
-then it would crash.  
+then it would be custom manufactured, and   
+then they would basically fly it and crash it.
 
 The materials were delicate, and the crashes pretty much wrecked months of work.  
 With the information gained from just a few tests, plane designers went back to the drawing board -- literally.  
@@ -766,7 +772,7 @@ Just reorder the examples in your preferred order and return that set from the b
 - use `--format documentation` in your `.rspec` file
 - copy the output of `rake spec` into a file
 - add `SpecManualOrder.new("documentation_output.txt").order(config)` to your spec_helper file
-- rerun `rake spec` and verify the failure
+- rerun `rake spec` and verify you still see the failure
 
 <div class="center-image">
 ![spec_helper.rb](images/spec_helper_example.png)
@@ -810,6 +816,10 @@ class: center
 
 # Now that you've simplified the problem
 ![puzzle](images/jigsaw-puzzle.jpg)
+
+???
+
+You should be able to narrow down the problematic code to a single spec or a suite of examples.
 ---
 class: remark-slide-fullscreen, center
 background-image: url(images/Puzzle2.jpg)
@@ -851,7 +861,13 @@ be rake spec:fixture_builder:rebuild
 
 ???
 
-This is a pretty complex operation, slightly more complicated than going down stairs in case of fire, so it may be useful to practice it.  In this presentation I’m including the free play-along-at-home game where you can check out your own copy of kairos on a troubled commit, as well as the essential random seed that causes issues in some cases.
+This is a pretty complex operation, slightly more complicated than going down stairs in case of fire,   
+so it may be useful to practice it.  
+In this presentation I’m including the free play-along-at-home game where you can check out your  
+own copy of kairos on a troubled commit, as well as the essential random seed that causes  
+issues in some cases.
+
+(read slide)
 
 
 ---
