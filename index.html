@@ -293,6 +293,7 @@ We always rebuild our fixtures between test runs on CI.
 
 # Time.zone.now != Time.now
 # Time.zone.today != Date.today
+# The traveling tester problem
 
 ???
 
@@ -303,6 +304,7 @@ I found over 100 places where we neglected to use zone-aware time calls.
 Many of them were fine -- there's usually nothing wrong with epoch seconds.  
 However, if your app cares about time zones, and 
 since it only takes one misplaced call to Time.now to create a potential failure that you will never see on your location-aware laptop.
+Not for nothing did I find a bunch of these failures in Miami.
 It's best to just forget about Time.now and always use Time.zone.now.  Same goes for Date.today.  
 These methods create random failures because our fixtures put users into random time zones.
 
